@@ -5,6 +5,7 @@ __pycache__/
 
 # Pycharm Files
 .idea/*
+*.sqlite
 
 # C extensions
 *.so
