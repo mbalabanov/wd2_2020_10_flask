@@ -4,7 +4,7 @@ import uuid
 
 from flask import Flask, render_template, request, make_response, redirect, url_for
 
-from model import db, User
+from model import db, User, Post, Comment
 
 app = Flask(__name__)
 
@@ -93,7 +93,10 @@ def login():
         user = None
 
         if cookie is not None:
-            user = db.query(User).filter(User.session_cookie == cookie).first()
+            user = db.query(User) \
+                .filter_by(session_cookie=cookie) \
+                .filter(User.session_expiry_datetime >= datetime.datetime.now())\
+                .first()
 
         if user is None:
             logged_in = False
@@ -120,12 +123,48 @@ def logout():
     pass
 
 
-@app.route('/blog', methods=["GET"])
+@app.route('/blog', methods=["GET", "POST"])
 @require_session_token
 def blog():
-    # TODO
-    return render_template("blog.html")
 
+    current_user = request.user
+
+    if request.method == "POST":
+        title = request.form.get("posttitle")
+        content = request.form.get("postcontent")
+        post = Post(
+            title=title, content=content,
+            user=current_user
+        )
+        db.add(post)
+        db.commit()
+        return redirect(url_for('blog'))
+
+    if request.method == "GET":
+        posts = db.query(Post).all()
+        return render_template("blog.html", posts=posts)
+
+
+@app.route('/posts/<post_id>', methods=["GET", "POST"])
+@require_session_token
+def posts(post_id):
+    current_user = request.user
+    post = db.query(Post).filter(Post.id == post_id).first()
+
+    if request.method == "POST":
+        content = request.form.get("content")
+        comment = Comment(
+            content=content,
+            post=post,
+            user=current_user
+        )
+        db.add(comment)
+        db.commit()
+        return redirect('/posts/{}'.format(post_id))
+
+    elif request.method == "GET":
+        comments = db.query(Comment).filter(Comment.post_id == post_id).all()
+        return render_template('posts.html', post=post, comments=comments)
 
 
 if __name__ == '__main__':
