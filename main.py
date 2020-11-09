@@ -44,6 +44,29 @@ def require_session_token(func):
     return wrapper
 
 
+def provide_user(func):
+    """Decorator to read user info if available"""
+
+    def wrapper(*args, **kwargs):
+        session_token = request.cookies.get(WEBSITE_LOGIN_COOKIE_NAME)
+
+        if not session_token:
+            request.user = None
+            return func(*args, **kwargs)
+
+        user = db.query(User)\
+            .filter_by(session_cookie=session_token)\
+            .filter(User.session_expiry_datetime >= datetime.datetime.now())\
+            .first()
+
+        request.user = user
+        return func(*args, **kwargs)
+
+    wrapper.__name__ = func.__name__
+    return wrapper
+
+
+
 @app.route('/', methods=["GET"])
 def index():
     return render_template("index.html")
@@ -64,18 +87,32 @@ def login():
         # user = db.query(User).filter(User.username == username).first()  # -> find first entry, if no entry, return None
         # users = db.query(User).filter(User.username == username).all()  # -> find all, always returns list. if not entry found, empty list
 
-        user = db.query(User).filter(User.username == username).first()
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+
+        # # right way to find user with correct password
+        # user = db.query(User)\
+        #     .filter(User.username == username, User.password_hash == password_hash)\
+        #     .first()
+
+        user = db.query(User).filter(User.username==username).first()
+
         session_cookie = str(uuid.uuid4())
         expiry_time = datetime.datetime.now() + datetime.timedelta(seconds=COOKIE_DURATION)
+
         if user is None:
-            password_hash = hashlib.sha256(password.encode()).hexdigest()
             user = User(username=username,
                         password_hash=password_hash,
                         session_cookie=session_cookie,
                         session_expiry_datetime=expiry_time)
             db.add(user)
             db.commit()
-            app.logger.info(f"User {username} is registered")
+            app.logger.info(f"User {username} is registered.")
+
+        elif user.password_hash != password_hash:
+            app.logger.info(f"User {username} failed to login with wrong password.")
+            redirect_url = request.args.get('redirectTo')
+            return redirect(url_for('login', redirectTo=redirect_url))
+
         else:
             user.session_cookie = session_cookie
             user.session_expiry_datetime = expiry_time
@@ -105,8 +142,12 @@ def login():
 
         return render_template("login.html", logged_in=logged_in)
 
+# TODO homework until nov 12th:
+# '/registration'
+#
 
 @app.route('/about', methods=["GET"])
+@provide_user
 def about():
     return render_template("about.html")
 
@@ -118,9 +159,24 @@ def faq():
 
 
 @app.route('/logout', methods=["GET"])
+@provide_user
 def logout():
-    # TODO
-    pass
+    response = make_response(redirect(url_for('index')))
+    response.set_cookie(WEBSITE_LOGIN_COOKIE_NAME, expires=0)
+
+    user = db.query(User)\
+        .filter_by(username=request.user.username)\
+        .first()
+
+    if user is not None:
+        # reset user
+        user.session_expiry_datetime = None
+        user.session_cookie = None
+        db.add(user)
+        db.commit()
+        app.logger.info(f"{user.username} has logged out.")
+
+    return response
 
 
 @app.route('/blog', methods=["GET", "POST"])
@@ -131,9 +187,9 @@ def blog():
 
     if request.method == "POST":
         title = request.form.get("posttitle")
-        content = request.form.get("postcontent")
+        text = request.form.get("posttext")
         post = Post(
-            title=title, content=content,
+            title=title, text=text,
             user=current_user
         )
         db.add(post)
@@ -152,9 +208,9 @@ def posts(post_id):
     post = db.query(Post).filter(Post.id == post_id).first()
 
     if request.method == "POST":
-        content = request.form.get("content")
+        text = request.form.get("text")
         comment = Comment(
-            content=content,
+            text=text,
             post=post,
             user=current_user
         )

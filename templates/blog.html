@@ -16,7 +16,7 @@ Blog
 <div class="d-flex justify-content-center">
     <div class="jumbotron">
         <h1 class="display-4">{{post.title}}</h1>
-        <p class="lead">{{post.content}}</p>
+        <p class="lead">{{post.text}}</p>
         <hr class="my-4">
         <p>{{post.user.username}}</p>
         <a class="btn btn-primary btn-lg" href="/posts/{{post.id}}" role="button">Learn more</a>
@@ -35,7 +35,7 @@ Blog
             </div>
             <div class="form-group">
                 <label for="postcontent">Post Content</label>
-                <textarea rows="6" name="postcontent" class="form-control" id="postcontent"></textarea>
+                <textarea rows="6" name="posttext" class="form-control" id="postcontent"></textarea>
             </div>
             <button type="submit" class="btn btn-primary">Post</button>
         </form>

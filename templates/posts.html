@@ -25,7 +25,7 @@ Posts - {{post.title}}
 {% for comment in comments %}
 <div class="alert alert-light" role="alert">
     <p>
-        {{comment.content}}
+        {{comment.text}}
     </p>
     <p>
         {{comment.user.username}}
@@ -38,7 +38,7 @@ Posts - {{post.title}}
         <form method="post">
             <div class="form-group">
                 <label for="commentInput">Comment</label>
-                <input type="text" name="content" class="form-control" placeholder="your-comment" id="commentInput">
+                <input type="text" name="text" class="form-control" placeholder="your-comment" id="commentInput">
             </div>
             <button type="submit" class="btn btn-primary">Send</button>
         </form>
