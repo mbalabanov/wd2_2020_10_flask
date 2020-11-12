@@ -1,12 +1,18 @@
 import datetime
 import hashlib
+import os
 import uuid
 
-from flask import Flask, render_template, request, make_response, redirect, url_for
+from flask import Flask, render_template, request, make_response, redirect, url_for, flash
 
 from model import db, User, Post, Comment
 
 app = Flask(__name__)
+
+# Keep this secret!
+# necessary for flash messages
+app.secret_key = b'_5#y2L"F4Q8z\n\xec]/'
+
 
 db.create_all()
 
@@ -77,10 +83,6 @@ def login():
     if request.method == "POST":
         username = request.form.get("username")
         password = request.form.get("password")
-        repeat = request.form.get("repeat")
-
-        if password != repeat:
-            return "Password and Repeat do not match! Please try again."
 
         # query, check if there is a user with this username in the DB
         # user = db.query(User).filter(User.username == username).one()  # -> needs to find one, otherwise raises Error
@@ -89,30 +91,19 @@ def login():
 
         password_hash = hashlib.sha256(password.encode()).hexdigest()
 
-        # # right way to find user with correct password
-        # user = db.query(User)\
-        #     .filter(User.username == username, User.password_hash == password_hash)\
-        #     .first()
-
-        user = db.query(User).filter(User.username==username).first()
+        # right way to find user with correct password
+        user = db.query(User)\
+            .filter(User.username == username, User.password_hash == password_hash)\
+            .first()
 
         session_cookie = str(uuid.uuid4())
         expiry_time = datetime.datetime.now() + datetime.timedelta(seconds=COOKIE_DURATION)
 
         if user is None:
-            user = User(username=username,
-                        password_hash=password_hash,
-                        session_cookie=session_cookie,
-                        session_expiry_datetime=expiry_time)
-            db.add(user)
-            db.commit()
-            app.logger.info(f"User {username} is registered.")
-
-        elif user.password_hash != password_hash:
+            flash("Username or password is wrong", "warning")
             app.logger.info(f"User {username} failed to login with wrong password.")
             redirect_url = request.args.get('redirectTo')
             return redirect(url_for('login', redirectTo=redirect_url))
-
         else:
             user.session_cookie = session_cookie
             user.session_expiry_datetime = expiry_time
@@ -142,9 +133,44 @@ def login():
 
         return render_template("login.html", logged_in=logged_in)
 
-# TODO homework until nov 12th:
-# '/registration'
-#
+
+@app.route("/registration", methods=["GET", "POST"])
+def registration():
+    if request.method=="POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
+        repeat = request.form.get("repeat")
+
+        if password!=repeat:
+            flash("Password and repeat did not match!", "warning")
+            return redirect(url_for("registration"))
+
+        # check if username is already taken in Database!
+        user = db.query(User).filter_by(username=username).first()
+        if user:
+            flash("Username is already taken", "warning")
+            return redirect(url_for('registration'))
+
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        session_cookie = str(uuid.uuid4())
+
+        session_expiry_datetime = datetime.datetime.now() + datetime.timedelta(seconds=COOKIE_DURATION)
+
+        user = User(username=username,
+                    password_hash=password_hash,
+                    session_cookie=session_cookie,
+                    session_expiry_datetime=session_expiry_datetime)
+        db.add(user)
+        db.commit()
+        flash("Registration Successful!", "success")
+        response = make_response(redirect(url_for('index')))
+        response.set_cookie(WEBSITE_LOGIN_COOKIE_NAME, session_cookie, httponly=True, samesite='Strict')
+        return response
+
+    elif request.method=="GET":
+        return render_template("registration.html")
+
+
 
 @app.route('/about', methods=["GET"])
 @provide_user
@@ -221,6 +247,16 @@ def posts(post_id):
     elif request.method == "GET":
         comments = db.query(Comment).filter(Comment.post_id == post_id).all()
         return render_template('posts.html', post=post, comments=comments)
+
+
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template('404.html'), 404
+
+
+@app.errorhandler(500)
+def server_error(e):
+    return render_template('500.html'), 500
 
 
 if __name__ == '__main__':

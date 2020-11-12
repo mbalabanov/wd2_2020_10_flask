@@ -1,7 +1,7 @@
 {% extends "frame.html" %}
 
 {% block title %}
-Login
+Registration
 {% endblock title %}
 
 {% include 'navigation.html' %}
@@ -24,7 +24,11 @@ Login
             <label for="exampleInputPassword1">Password</label>
             <input type="password" name="password" class="form-control" id="exampleInputPassword1">
         </div>
-        <button type="submit" class="btn btn-primary">Login</button>
+        <div class="form-group">
+            <label for="exampleInputPasswordRepeat1">Password-Repeat</label>
+            <input type="password" name="repeat" class="form-control" id="exampleInputPasswordRepeat1">
+        </div>
+        <button type="submit" class="btn btn-primary">Register</button>
     </form>
 
     {% else %}

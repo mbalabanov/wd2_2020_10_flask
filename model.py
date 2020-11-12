@@ -1,8 +1,10 @@
 import datetime
+import os
 
 from sqla_wrapper import SQLAlchemy
 
-db = SQLAlchemy("sqlite:///blog.sqlite")
+DEFAULT_DB = "sqlite:///blog.sqlite"
+db = SQLAlchemy(os.getenv("DATABASE_URL", DEFAULT_DB))
 
 
 # 3 Klassen:
