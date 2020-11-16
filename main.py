@@ -2,10 +2,14 @@ import datetime
 import hashlib
 import os
 import uuid
+import re
 
 from flask import Flask, render_template, request, make_response, redirect, url_for, flash
+from flask_mail import Mail, Message
+
 
 from model import db, User, Post, Comment
+import email_config
 
 app = Flask(__name__)
 
@@ -13,11 +17,50 @@ app = Flask(__name__)
 # necessary for flash messages
 app.secret_key = b'_5#y2L"F4Q8z\n\xec]/'
 
+app.config.update(
+    DEBUG=True,
+    # EMAIL SETTINGS
+    MAIL_SERVER=os.getenv("MAIL_SERVER", email_config.MAIL_SERVER),
+    MAIL_PORT=int(os.getenv("MAIL_PORT", email_config.MAIL_PORT)),
+    MAIL_USE_SSL=True,
+    MAIL_USERNAME=os.getenv("MAIL_USERNAME", email_config.MAIL_USERNAME),
+    MAIL_PASSWORD=os.getenv("MAIL_PASSWORD", email_config.MAIL_PASSWORD),
+)
+
+mail = Mail(app)
+
 
 db.create_all()
 
 WEBSITE_LOGIN_COOKIE_NAME = "science/session_token"
 COOKIE_DURATION = 900  # in seconds
+
+
+# Make a regular expression for validating an Email
+# for custom mails use: '^[a-z0-9]+[\._]?[a-z0-9]+[@]\w+[.]\w+$'
+EMAIL_REGEX = '^[a-z0-9]+[\._]?[a-z0-9]+[@]\w+[.]\w{2,3}$'
+
+# EMAIL SENDER FOR ALL SITE NOTIFICATIONS
+SENDER = "beachvolley.vienna.park@gmail.com"
+
+
+@app.route("/test-mail")
+def test_mail():
+    try:
+        msg = Message(
+            subject="Flask WebDev Project Test Email",
+            sender=SENDER,
+            recipients=["beachvolley.vienna.park@gmail.com"]
+        )
+        msg.body = "There is a new Blogpost!, Check this out!"
+        mail.send(msg)
+        return "Flask sent your mail!"
+    except Exception as e:
+        return str(e)
+
+
+def check_email(email: str) -> bool:
+    return bool(re.search(EMAIL_REGEX, email))
 
 
 def require_session_token(func):
@@ -138,11 +181,24 @@ def login():
 def registration():
     if request.method=="POST":
         username = request.form.get("username")
+        email = request.form.get("email")
         password = request.form.get("password")
         repeat = request.form.get("repeat")
 
+        # check email valid
+        is_valid = check_email(email)
+        if not is_valid:
+            flash("Email is not a valid email", "warning")
+            return redirect(url_for("registration"))
+
         if password!=repeat:
             flash("Password and repeat did not match!", "warning")
+            return redirect(url_for("registration"))
+
+        # check if email is already taken:
+        user = db.query(User).filter_by(email=email).first()
+        if user:
+            flash("Email is already taken", "warning")
             return redirect(url_for("registration"))
 
         # check if username is already taken in Database!
@@ -157,12 +213,25 @@ def registration():
         session_expiry_datetime = datetime.datetime.now() + datetime.timedelta(seconds=COOKIE_DURATION)
 
         user = User(username=username,
+                    email=email,
                     password_hash=password_hash,
                     session_cookie=session_cookie,
                     session_expiry_datetime=session_expiry_datetime)
         db.add(user)
         db.commit()
         flash("Registration Successful!", "success")
+
+        # send registration confirmation email
+        msg = Message(
+            subject="WebDev Blog - Registration Successful",
+            sender=SENDER,
+            recipients=[email],
+            bcc=[SENDER]
+        )
+        msg.body = f"Hi {username}!\nWelcome to our WebDev Flask site!\nEnjoy!"
+        mail.send(msg)
+
+        # set cookie for the browser
         response = make_response(redirect(url_for('index')))
         response.set_cookie(WEBSITE_LOGIN_COOKIE_NAME, session_cookie, httponly=True, samesite='Strict')
         return response
@@ -220,6 +289,19 @@ def blog():
         )
         db.add(post)
         db.commit()
+
+        # send notification email
+        msg = Message(
+            subject="WebDev Blog - Registration Successful",
+            sender=SENDER,
+            recipients=[current_user.email]
+        )
+        msg.body = f"Hi {current_user.username}!\nWelcome to our WebDev Flask site!\nEnjoy!"
+        msg.html = render_template("new_post.html",
+                                   username=current_user.username,
+                                   post=post)
+        mail.send(msg)
+
         return redirect(url_for('blog'))
 
     if request.method == "GET":
