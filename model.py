@@ -18,7 +18,7 @@ class User(db.Model):
     updated = db.Column(db.DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
 
     username = db.Column(db.String(255), nullable=False, unique=True)
-    email = db.Column(db.String(255), unique=True)
+    email = db.Column(db.String(255), nullable=False, unique=True)
     password_hash = db.Column(db.String(255), nullable=False)
     session_cookie = db.Column(db.String(255), nullable=True, unique=True)
     session_expiry_datetime = db.Column(db.DateTime)
