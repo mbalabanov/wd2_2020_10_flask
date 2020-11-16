@@ -7,7 +7,6 @@ import re
 from flask import Flask, render_template, request, make_response, redirect, url_for, flash
 from flask_mail import Mail, Message
 
-
 from model import db, User, Post, Comment
 import email_config
 
@@ -29,12 +28,10 @@ app.config.update(
 
 mail = Mail(app)
 
-
 db.create_all()
 
 WEBSITE_LOGIN_COOKIE_NAME = "science/session_token"
 COOKIE_DURATION = 900  # in seconds
-
 
 # Make a regular expression for validating an Email
 # for custom mails use: '^[a-z0-9]+[\._]?[a-z0-9]+[@]\w+[.]\w+$'
@@ -103,9 +100,9 @@ def provide_user(func):
             request.user = None
             return func(*args, **kwargs)
 
-        user = db.query(User)\
-            .filter_by(session_cookie=session_token)\
-            .filter(User.session_expiry_datetime >= datetime.datetime.now())\
+        user = db.query(User) \
+            .filter_by(session_cookie=session_token) \
+            .filter(User.session_expiry_datetime >= datetime.datetime.now()) \
             .first()
 
         request.user = user
@@ -113,7 +110,6 @@ def provide_user(func):
 
     wrapper.__name__ = func.__name__
     return wrapper
-
 
 
 @app.route('/', methods=["GET"])
@@ -135,8 +131,8 @@ def login():
         password_hash = hashlib.sha256(password.encode()).hexdigest()
 
         # right way to find user with correct password
-        user = db.query(User)\
-            .filter(User.username == username, User.password_hash == password_hash)\
+        user = db.query(User) \
+            .filter(User.username == username, User.password_hash == password_hash) \
             .first()
 
         session_cookie = str(uuid.uuid4())
@@ -166,7 +162,7 @@ def login():
         if cookie is not None:
             user = db.query(User) \
                 .filter_by(session_cookie=cookie) \
-                .filter(User.session_expiry_datetime >= datetime.datetime.now())\
+                .filter(User.session_expiry_datetime >= datetime.datetime.now()) \
                 .first()
 
         if user is None:
@@ -179,7 +175,7 @@ def login():
 
 @app.route("/registration", methods=["GET", "POST"])
 def registration():
-    if request.method=="POST":
+    if request.method == "POST":
         username = request.form.get("username")
         email = request.form.get("email")
         password = request.form.get("password")
@@ -191,7 +187,7 @@ def registration():
             flash("Email is not a valid email", "warning")
             return redirect(url_for("registration"))
 
-        if password!=repeat:
+        if password != repeat:
             flash("Password and repeat did not match!", "warning")
             return redirect(url_for("registration"))
 
@@ -236,9 +232,8 @@ def registration():
         response.set_cookie(WEBSITE_LOGIN_COOKIE_NAME, session_cookie, httponly=True, samesite='Strict')
         return response
 
-    elif request.method=="GET":
+    elif request.method == "GET":
         return render_template("registration.html")
-
 
 
 @app.route('/about', methods=["GET"])
@@ -259,8 +254,8 @@ def logout():
     response = make_response(redirect(url_for('index')))
     response.set_cookie(WEBSITE_LOGIN_COOKIE_NAME, expires=0)
 
-    user = db.query(User)\
-        .filter_by(username=request.user.username)\
+    user = db.query(User) \
+        .filter_by(username=request.user.username) \
         .first()
 
     if user is not None:
@@ -277,7 +272,6 @@ def logout():
 @app.route('/blog', methods=["GET", "POST"])
 @require_session_token
 def blog():
-
     current_user = request.user
 
     if request.method == "POST":
