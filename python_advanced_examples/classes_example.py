@@ -1,5 +1,6 @@
 class A:
     __slots__ = ['a', 'b']
+
     def __init__(self):
         self.a = 10
 
