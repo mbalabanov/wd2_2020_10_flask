@@ -16,6 +16,11 @@ app = Flask(__name__)
 # necessary for flash messages
 app.secret_key = b'_5#y2L"F4Q8z\n\xec]/'
 
+LOCALHOST_NAME = "localhost"
+LOCALHOST_PORT = 7890
+
+HOST_ADDR = os.getenv("HOST_ADDR", f'http://{LOCALHOST_NAME}:{LOCALHOST_PORT}')
+
 app.config.update(
     DEBUG=True,
     # EMAIL SETTINGS
@@ -113,11 +118,13 @@ def provide_user(func):
 
 
 @app.route('/', methods=["GET"])
+@provide_user
 def index():
-    return render_template("index.html")
+    return render_template("index.html", user=request.user)
 
 
 @app.route('/login', methods=["GET", "POST"])
+@provide_user
 def login():
     if request.method == "POST":
         username = request.form.get("username")
@@ -141,7 +148,7 @@ def login():
         if user is None:
             flash("Username or password is wrong", "warning")
             app.logger.info(f"User {username} failed to login with wrong password.")
-            redirect_url = request.args.get('redirectTo')
+            redirect_url = request.args.get('redirectTo', url_for('index'))
             return redirect(url_for('login', redirectTo=redirect_url))
         else:
             user.session_cookie = session_cookie
@@ -150,7 +157,7 @@ def login():
             db.commit()
             app.logger.info(f"User {username} is logged in")
 
-        redirect_url = request.args.get('redirectTo')
+        redirect_url = request.args.get('redirectTo', url_for('index'))
         response = make_response(redirect(redirect_url))
         response.set_cookie(WEBSITE_LOGIN_COOKIE_NAME, session_cookie, httponly=True, samesite='Strict')
         return response
@@ -170,10 +177,11 @@ def login():
         else:
             logged_in = True
 
-        return render_template("login.html", logged_in=logged_in)
+        return render_template("login.html", logged_in=logged_in, user=request.user)
 
 
 @app.route("/registration", methods=["GET", "POST"])
+@provide_user
 def registration():
     if request.method == "POST":
         username = request.form.get("username")
@@ -233,19 +241,19 @@ def registration():
         return response
 
     elif request.method == "GET":
-        return render_template("registration.html")
+        return render_template("registration.html", user=request.user)
 
 
 @app.route('/about', methods=["GET"])
 @provide_user
 def about():
-    return render_template("about.html")
+    return render_template("about.html", user=request.user)
 
 
 @app.route('/faq', methods=["GET"])
 @require_session_token
 def faq():
-    return render_template("faq.html")
+    return render_template("faq.html", user=request.user)
 
 
 @app.route('/logout', methods=["GET"])
@@ -293,6 +301,7 @@ def blog():
         msg.body = f"Hi {current_user.username}!\nWelcome to our WebDev Flask site!\nEnjoy!"
         msg.html = render_template("new_post.html",
                                    username=current_user.username,
+                                   link=f"{HOST_ADDR}/posts/{post.id}",
                                    post=post)
         mail.send(msg)
 
@@ -300,7 +309,7 @@ def blog():
 
     if request.method == "GET":
         posts = db.query(Post).all()
-        return render_template("blog.html", posts=posts)
+        return render_template("blog.html", posts=posts, user=request.user)
 
 
 @app.route('/posts/<post_id>', methods=["GET", "POST"])
@@ -322,18 +331,20 @@ def posts(post_id):
 
     elif request.method == "GET":
         comments = db.query(Comment).filter(Comment.post_id == post_id).all()
-        return render_template('posts.html', post=post, comments=comments)
+        return render_template('posts.html', post=post, comments=comments, user=request.user)
 
 
 @app.errorhandler(404)
+@provide_user
 def page_not_found(e):
-    return render_template('404.html'), 404
+    return render_template('404.html', user=request.user), 404
 
 
 @app.errorhandler(500)
+@provide_user
 def server_error(e):
-    return render_template('500.html'), 500
+    return render_template('500.html', user=request.user), 500
 
 
 if __name__ == '__main__':
-    app.run(host='localhost', port=7890)
+    app.run(host=LOCALHOST_NAME, port=LOCALHOST_PORT)
